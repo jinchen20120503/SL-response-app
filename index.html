@@ -15,7 +15,7 @@
         input[readonly] { background-color: #f0f0f0; color: #888; }
         .btn-group { display: flex; gap: 10px; margin-top: 20px; }
         button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
-        .btn-submit { background-color: #00b900; color: white; }
+        .btn-submit { background-color: #00b900 !important; color: white !important; }
         .btn-cancel { background-color: #e0e0e0; color: #333; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
     </style>
@@ -24,43 +24,46 @@
 
 <div class="card">
     <h2>製造問題回報</h2>
-    
     <div class="field">
         <label>申請日期</label>
         <input type="text" id="date" readonly>
     </div>
-
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="讀取中...">
+        <input type="text" id="userName" readonly placeholder="正在獲取權限...">
     </div>
-
     <div class="field">
         <label>工單或圖號</label>
         <input type="text" id="orderId" placeholder="請輸入編號">
     </div>
-
     <div class="field">
         <label>異常說明</label>
         <textarea id="description" rows="3" placeholder="請詳細描述異常狀況..."></textarea>
     </div>
-
     <div class="field">
         <label>現場照片 (選填)</label>
         <input type="file" id="fileInput" accept="image/*">
         <img id="preview" src="">
     </div>
-
     <div class="btn-group">
-        <button class="btn-cancel" onclick="liff.closeWindow()">取消</button>
-        <button class="btn-submit" onclick="submitReport()">送出回報</button>
+        <button type="button" class="btn-cancel" onclick="liff.closeWindow()">取消</button>
+        <button type="button" class="btn-submit" onclick="submitReport()">送出回報</button>
     </div>
 </div>
 
 <script>
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
 
-    async function main() {
+    // 先帶出日期，讓頁面不空白
+    function setDate() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        document.getElementById('date').value = `${y}-${m}-${d}`;
+    }
+
+    async function initializeLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
             if (!liff.isLoggedIn()) {
@@ -68,15 +71,10 @@
             } else {
                 const profile = await liff.getProfile();
                 document.getElementById('userName').value = profile.displayName;
-                
-                const now = new Date();
-                const today = now.getFullYear() + '-' + 
-                              String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                              String(now.getDate()).padStart(2, '0');
-                document.getElementById('date').value = today;
             }
         } catch (err) {
-            console.error('初始化失敗', err);
+            document.getElementById('userName').value = "讀取失敗，請重新開啟";
+            console.error(err);
         }
     }
 
@@ -106,10 +104,12 @@
         
         liff.sendMessages([{ type: 'text', text: message }])
             .then(() => liff.closeWindow())
-            .catch((err) => alert('送出失敗，請確認已連動機器人'));
+            .catch((err) => alert('傳送失敗，請確認機器人連動 (Linked Bot) 設定'));
     }
 
-    main();
+    // 執行初始化
+    setDate();
+    initializeLiff();
 </script>
 
 </body>
