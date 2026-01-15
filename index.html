@@ -6,9 +6,9 @@
     <title>製造問題回報</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: #f4f7f6; color: #333; }
+        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h2 { text-align: center; margin-top: 0; color: #00b900; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
+        h2 { text-align: center; color: #00b900; margin-top: 0; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
         .field { margin-bottom: 15px; }
         label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #666; }
         input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
@@ -17,7 +17,7 @@
         button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
         .btn-submit { background-color: #00b900; color: white; }
         .btn-cancel { background-color: #e0e0e0; color: #333; }
-        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -32,7 +32,7 @@
 
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="正在讀取 LINE 資訊...">
+        <input type="text" id="userName" readonly placeholder="讀取中...">
     </div>
 
     <div class="field">
@@ -42,7 +42,7 @@
 
     <div class="field">
         <label>異常說明</label>
-        <textarea id="description" rows="3" placeholder="請詳細描述現場異常狀況..."></textarea>
+        <textarea id="description" rows="3" placeholder="請詳細描述異常狀況..."></textarea>
     </div>
 
     <div class="field">
@@ -52,4 +52,65 @@
     </div>
 
     <div class="btn-group">
-        <button class="btn-cancel" onclick="liff.closeWindow()">取消</button
+        <button class="btn-cancel" onclick="liff.closeWindow()">取消</button>
+        <button class="btn-submit" onclick="submitReport()">送出回報</button>
+    </div>
+</div>
+
+<script>
+    const MY_LIFF_ID = "2008893793-KFkHwA77"; 
+
+    async function main() {
+        try {
+            await liff.init({ liffId: MY_LIFF_ID });
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            } else {
+                const profile = await liff.getProfile();
+                document.getElementById('userName').value = profile.displayName;
+                
+                const now = new Date();
+                const today = now.getFullYear() + '-' + 
+                              String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                              String(now.getDate()).padStart(2, '0');
+                document.getElementById('date').value = today;
+            }
+        } catch (err) {
+            console.error('初始化失敗', err);
+        }
+    }
+
+    document.getElementById('fileInput').onchange = function (evt) {
+        const [file] = evt.target.files;
+        if (file) {
+            const preview = document.getElementById('preview');
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = 'block';
+        }
+    };
+
+    function submitReport() {
+        const date = document.getElementById('date').value;
+        const name = document.getElementById('userName').value;
+        const orderId = document.getElementById('orderId').value;
+        const desc = document.getElementById('description').value;
+        const fileInput = document.getElementById('fileInput');
+
+        if (!orderId.trim() || !desc.trim()) {
+            alert("請填寫工單與說明");
+            return;
+        }
+
+        const hasPhoto = fileInput.files.length > 0 ? "✅ 已附照片" : "❌ 未附照片";
+        const message = `【製造問題回報】\n日期：${date}\n人員：${name}\n工單：${orderId}\n說明：${desc}\n照片：${hasPhoto}`;
+        
+        liff.sendMessages([{ type: 'text', text: message }])
+            .then(() => liff.closeWindow())
+            .catch((err) => alert('送出失敗，請確認已連動機器人'));
+    }
+
+    main();
+</script>
+
+</body>
+</html>
