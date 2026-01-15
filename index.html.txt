@@ -53,7 +53,7 @@
 <script>
     // 初始化 LIFF
     async function main() {
-        await liff.init({ liffId: "你的LIFF_ID" }); // 填入你在後台取得的 ID
+        await liff.init({ liffId: "2008893793-KFkHwA77" }); 
         if (!liff.isLoggedIn()) {
             liff.login();
         } else {
