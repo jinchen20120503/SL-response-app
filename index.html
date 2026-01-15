@@ -125,23 +125,27 @@
             };
 
             // 1. 傳送到 Google 試算表
-            fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors", // 重要：跨網域傳送
-                body: JSON.stringify(payload)
-            }).then(() => {
-                // 2. 傳送 LINE 訊息通知
+        fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify(payload)
+        }).then(() => {
+            // 延遲 0.5 秒再傳 LINE，確保手機反應得過來
+            setTimeout(() => {
                 const lineMsg = `【製造回報已存檔】\n人員：${name}\n工單：${orderId}\n照片：${hasPhoto ? "✅ 已同步雲端" : "❌"}`;
-                return liff.sendMessages([{ type: 'text', text: lineMsg }]);
-            }).then(() => {
-                overlay.style.display = 'none';
-                liff.closeWindow();
-            }).catch((err) => {
-                overlay.style.display = 'none';
-                alert('回報成功，但訊息傳送失敗');
-                liff.closeWindow();
-            });
-        };
+                liff.sendMessages([{ type: 'text', text: lineMsg }])
+                    .then(() => {
+                        overlay.style.display = 'none';
+                        liff.closeWindow();
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                        overlay.style.display = 'none';
+                        alert('資料已存入試算表，但無法發送 LINE 訊息 (請檢查 Linked Bot 設定)');
+                        liff.closeWindow();
+                    });
+            }, 500);
+        });
 
         if (hasPhoto) {
             reader.onload = () => sendToGas(reader.result);
