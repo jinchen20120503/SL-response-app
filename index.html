@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>製造問題回報</title>
+    <title>製造問題回報系統</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; }
@@ -18,9 +18,16 @@
         .btn-submit { background-color: #00b900 !important; color: white !important; }
         .btn-cancel { background-color: #e0e0e0; color: #333; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
+        #loadingOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 50%;
+            font-weight: bold; color: #00b900;
+        }
     </style>
 </head>
 <body>
+
+<div id="loadingOverlay">系統處理中，請稍候...</div>
 
 <div class="card">
     <h2>製造問題回報</h2>
@@ -47,14 +54,15 @@
     </div>
     <div class="btn-group">
         <button type="button" class="btn-cancel" onclick="liff.closeWindow()">取消</button>
-        <button type="button" class="btn-submit" onclick="submitReport()">送出回報</button>
+        <button type="button" class="btn-submit" id="submitBtn" onclick="submitReport()">送出回報</button>
     </div>
 </div>
 
 <script>
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxE3kX2fpQUFu73d9OH_34E6O_NHxBUUp_xBvDvRZUPokqxDbuHC59nkb6fm7ZnBijRCw/exec";
 
-    // 先帶出日期，讓頁面不空白
+    // 初始化日期
     function setDate() {
         const now = new Date();
         const y = now.getFullYear();
@@ -74,10 +82,10 @@
             }
         } catch (err) {
             document.getElementById('userName').value = "讀取失敗，請重新開啟";
-            console.error(err);
         }
     }
 
+    // 照片預覽
     document.getElementById('fileInput').onchange = function (evt) {
         const [file] = evt.target.files;
         if (file) {
@@ -93,21 +101,56 @@
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
         const fileInput = document.getElementById('fileInput');
+        const overlay = document.getElementById('loadingOverlay');
 
         if (!orderId.trim() || !desc.trim()) {
             alert("請填寫工單與說明");
             return;
         }
 
-        const hasPhoto = fileInput.files.length > 0 ? "✅ 已附照片" : "❌ 未附照片";
-        const message = `【製造問題回報】\n日期：${date}\n人員：${name}\n工單：${orderId}\n說明：${desc}\n照片：${hasPhoto}`;
-        
-        liff.sendMessages([{ type: 'text', text: message }])
-            .then(() => liff.closeWindow())
-            .catch((err) => alert('傳送失敗，請確認機器人連動 (Linked Bot) 設定'));
+        overlay.style.display = 'block'; // 顯示讀取中
+        document.getElementById('submitBtn').disabled = true;
+
+        const reader = new FileReader();
+        const hasPhoto = fileInput.files.length > 0;
+
+        const sendToGas = (base64Image = null) => {
+            const payload = {
+                date: date,
+                name: name,
+                orderId: orderId,
+                description: desc,
+                hasPhoto: hasPhoto ? "✅ 已附照片" : "❌ 未附照片",
+                image: base64Image
+            };
+
+            // 1. 傳送到 Google 試算表
+            fetch(GAS_URL, {
+                method: "POST",
+                mode: "no-cors", // 重要：跨網域傳送
+                body: JSON.stringify(payload)
+            }).then(() => {
+                // 2. 傳送 LINE 訊息通知
+                const lineMsg = `【製造回報已存檔】\n人員：${name}\n工單：${orderId}\n照片：${hasPhoto ? "✅ 已同步雲端" : "❌"}`;
+                return liff.sendMessages([{ type: 'text', text: lineMsg }]);
+            }).then(() => {
+                overlay.style.display = 'none';
+                liff.closeWindow();
+            }).catch((err) => {
+                overlay.style.display = 'none';
+                alert('回報成功，但訊息傳送失敗');
+                liff.closeWindow();
+            });
+        };
+
+        if (hasPhoto) {
+            reader.onload = () => sendToGas(reader.result);
+            reader.readAsDataURL(fileInput.files[0]);
+        } else {
+            sendToGas();
+        }
     }
 
-    // 執行初始化
     setDate();
     initializeLiff();
 </script>
