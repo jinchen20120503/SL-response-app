@@ -37,7 +37,7 @@
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="正在獲取權限...">
+        <input type="text" id="userName" readonly placeholder="正在讀取 LINE 資訊...">
     </div>
     <div class="field">
         <label>工單或圖號</label>
@@ -62,7 +62,7 @@
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxE3kX2fpQUFu73d9OH_34E6O_NHxBUUp_xBvDvRZUPokqxDbuHC59nkb6fm7ZnBijRCw/exec";
 
-    // 初始化日期
+    // 1. 設定日期 (頁面一載入就執行)
     function setDate() {
         const now = new Date();
         const y = now.getFullYear();
@@ -71,6 +71,7 @@
         document.getElementById('date').value = `${y}-${m}-${d}`;
     }
 
+    // 2. 初始化 LIFF 並讀取姓名
     async function initializeLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
@@ -81,11 +82,12 @@
                 document.getElementById('userName').value = profile.displayName;
             }
         } catch (err) {
-            document.getElementById('userName').value = "讀取失敗，請重新開啟";
+            console.error(err);
+            document.getElementById('userName').value = "讀取失敗，請檢查權限";
         }
     }
 
-    // 照片預覽
+    // 3. 處理照片預覽
     document.getElementById('fileInput').onchange = function (evt) {
         const [file] = evt.target.files;
         if (file) {
@@ -95,6 +97,7 @@
         }
     };
 
+    // 4. 送出資料與訊息
     function submitReport() {
         const date = document.getElementById('date').value;
         const name = document.getElementById('userName').value;
@@ -108,13 +111,13 @@
             return;
         }
 
-        overlay.style.display = 'block'; // 顯示讀取中
+        overlay.style.display = 'block';
         document.getElementById('submitBtn').disabled = true;
 
         const reader = new FileReader();
         const hasPhoto = fileInput.files.length > 0;
 
-        const sendToGas = (base64Image = null) => {
+        const sendData = (base64Image = null) => {
             const payload = {
                 date: date,
                 name: name,
@@ -124,37 +127,43 @@
                 image: base64Image
             };
 
-            // 1. 傳送到 Google 試算表
-        fetch(GAS_URL, {
-            method: "POST",
-            mode: "no-cors",
-            body: JSON.stringify(payload)
-        }).then(() => {
-            // 延遲 0.5 秒再傳 LINE，確保手機反應得過來
-            setTimeout(() => {
-                const lineMsg = `【製造回報已存檔】\n人員：${name}\n工單：${orderId}\n照片：${hasPhoto ? "✅ 已同步雲端" : "❌"}`;
-                liff.sendMessages([{ type: 'text', text: lineMsg }])
-                    .then(() => {
-                        overlay.style.display = 'none';
-                        liff.closeWindow();
-                    })
-                    .catch((err) => {
-                        console.error(err);
-                        overlay.style.display = 'none';
-                        alert('資料已存入試算表，但無法發送 LINE 訊息 (請檢查 Linked Bot 設定)');
-                        liff.closeWindow();
-                    });
-            }, 500);
-        });
+            // 第一步：發送給 Google 試算表
+            fetch(GAS_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(payload)
+            }).then(() => {
+                // 第二步：延遲 0.5 秒後發送 LINE 訊息
+                setTimeout(() => {
+                    const lineMsg = `【製造回報已存檔】\n人員：${name}\n工單：${orderId}\n照片：${hasPhoto ? "✅ 已同步雲端" : "❌"}`;
+                    liff.sendMessages([{ type: 'text', text: lineMsg }])
+                        .then(() => {
+                            overlay.style.display = 'none';
+                            liff.closeWindow();
+                        })
+                        .catch((err) => {
+                            console.error(err);
+                            overlay.style.display = 'none';
+                            alert('資料已存入試算表，但發送 LINE 訊息失敗 (請檢查 Linked Bot)');
+                            liff.closeWindow();
+                        });
+                }, 500);
+            }).catch((err) => {
+                overlay.style.display = 'none';
+                alert('系統連接失敗，請檢查網路');
+                document.getElementById('submitBtn').disabled = false;
+            });
+        };
 
         if (hasPhoto) {
-            reader.onload = () => sendToGas(reader.result);
+            reader.onload = () => sendData(reader.result);
             reader.readAsDataURL(fileInput.files[0]);
         } else {
-            sendToGas();
+            sendData();
         }
     }
 
+    // 執行初始化動作
     setDate();
     initializeLiff();
 </script>
