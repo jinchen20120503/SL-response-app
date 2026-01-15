@@ -6,28 +6,31 @@
     <title>製造問題回報系統</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
         h2 { text-align: center; color: #00b900; margin-top: 0; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
-        .field { margin-bottom: 15px; }
-        label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #666; }
-        input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-        input[readonly] { background-color: #f0f0f0; color: #888; }
-        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
-        button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
-        .btn-submit { background-color: #00b900 !important; color: white !important; }
-        .btn-cancel { background-color: #e0e0e0; color: #333; }
-        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
+        .field { margin-bottom: 18px; }
+        label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #444; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
+        .btn-group { display: flex; gap: 10px; margin-top: 25px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-submit { background-color: #00b900; color: white; }
+        .btn-submit:disabled { background-color: #ccc; }
+        .btn-cancel { background-color: #eee; color: #333; }
+        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         #loadingOverlay { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 50%;
-            font-weight: bold; color: #00b900;
+            background: rgba(255,255,255,0.9); z-index: 1000; text-align: center; padding-top: 50%;
         }
+        .success-msg { color: #00b900; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay">系統處理中，請稍候...</div>
+<div id="loadingOverlay">
+    <div id="loadingText" class="success-msg">系統處理中...</div>
+</div>
 
 <div class="card">
     <h2>製造問題回報</h2>
@@ -37,11 +40,11 @@
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="正在讀取 LINE 資訊...">
+        <input type="text" id="userName" readonly placeholder="讀取中...">
     </div>
     <div class="field">
         <label>工單或圖號</label>
-        <input type="text" id="orderId" placeholder="請輸入編號">
+        <input type="text" id="orderId" placeholder="請填寫工單編號">
     </div>
     <div class="field">
         <label>異常說明</label>
@@ -50,7 +53,7 @@
     <div class="field">
         <label>現場照片 (選填)</label>
         <input type="file" id="fileInput" accept="image/*">
-        <img id="preview" src="">
+        <img id="preview">
     </div>
     <div class="btn-group">
         <button type="button" class="btn-cancel" onclick="liff.closeWindow()">取消</button>
@@ -59,20 +62,19 @@
 </div>
 
 <script>
+    // 1. 核心參數設定
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxE3kX2fpQUFu73d9OH_34E6O_NHxBUUp_xBvDvRZUPokqxDbuHC59nkb6fm7ZnBijRCw/exec";
 
-    // 1. 設定日期 (頁面一載入就執行)
-    function setDate() {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        document.getElementById('date').value = `${y}-${m}-${d}`;
+    // 2. 自動帶入日期
+    function initDate() {
+        const d = new Date();
+        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        document.getElementById('date').value = dateStr;
     }
 
-    // 2. 初始化 LIFF 並讀取姓名
-    async function initializeLiff() {
+    // 3. 初始化 LIFF
+    async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
             if (!liff.isLoggedIn()) {
@@ -81,32 +83,33 @@
                 const profile = await liff.getProfile();
                 document.getElementById('userName').value = profile.displayName;
             }
-        } catch (err) {
-            console.error(err);
-            document.getElementById('userName').value = "讀取失敗，請檢查權限";
+        } catch (e) {
+            document.getElementById('userName').value = "LINE 訪客";
         }
     }
 
-    // 3. 處理照片預覽
-    document.getElementById('fileInput').onchange = function (evt) {
-        const [file] = evt.target.files;
+    // 4. 照片預覽
+    document.getElementById('fileInput').onchange = function(e) {
+        const file = e.target.files[0];
         if (file) {
-            const preview = document.getElementById('preview');
-            preview.src = URL.createObjectURL(file);
-            preview.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const preview = document.getElementById('preview');
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
         }
     };
 
-    // 4. 送出資料與訊息
+    // 5. 送出邏輯
     function submitReport() {
-        const date = document.getElementById('date').value;
-        const name = document.getElementById('userName').value;
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
-        const fileInput = document.getElementById('fileInput');
         const overlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
 
-        if (!orderId.trim() || !desc.trim()) {
+        if (!orderId || !desc) {
             alert("請填寫工單與說明");
             return;
         }
@@ -114,59 +117,45 @@
         overlay.style.display = 'block';
         document.getElementById('submitBtn').disabled = true;
 
-        const reader = new FileReader();
-        const hasPhoto = fileInput.files.length > 0;
-
-        const sendData = (base64Image = null) => {
+        const file = document.getElementById('fileInput').files[0];
+        
+        const doSend = (imgBase64 = null) => {
             const payload = {
-                date: date,
-                name: name,
+                date: document.getElementById('date').value,
+                name: document.getElementById('userName').value,
                 orderId: orderId,
                 description: desc,
-                hasPhoto: hasPhoto ? "✅ 已附照片" : "❌ 未附照片",
-                image: base64Image
+                hasPhoto: imgBase64 ? "✅" : "❌",
+                image: imgBase64
             };
 
-            // 第一步：發送給 Google 試算表
             fetch(GAS_URL, {
                 method: "POST",
                 mode: "no-cors",
                 body: JSON.stringify(payload)
             }).then(() => {
-                // 第二步：延遲 0.5 秒後發送 LINE 訊息
+                loadingText.innerHTML = "🎉 回報成功！<br><span style='font-size:14px; color:#666;'>視窗即將關閉</span>";
                 setTimeout(() => {
-                    const lineMsg = `【製造回報已存檔】\n人員：${name}\n工單：${orderId}\n照片：${hasPhoto ? "✅ 已同步雲端" : "❌"}`;
-                    liff.sendMessages([{ type: 'text', text: lineMsg }])
-                        .then(() => {
-                            overlay.style.display = 'none';
-                            liff.closeWindow();
-                        })
-                        .catch((err) => {
-                            console.error(err);
-                            overlay.style.display = 'none';
-                            alert('資料已存入試算表，但發送 LINE 訊息失敗 (請檢查 Linked Bot)');
-                            liff.closeWindow();
-                        });
-                }, 500);
-            }).catch((err) => {
+                    liff.closeWindow();
+                }, 2000);
+            }).catch(err => {
                 overlay.style.display = 'none';
-                alert('系統連接失敗，請檢查網路');
+                alert("傳送失敗，請檢查網路連線");
                 document.getElementById('submitBtn').disabled = false;
             });
         };
 
-        if (hasPhoto) {
-            reader.onload = () => sendData(reader.result);
-            reader.readAsDataURL(fileInput.files[0]);
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => doSend(e.target.result);
+            reader.readAsDataURL(file);
         } else {
-            sendData();
+            doSend();
         }
     }
 
-    // 執行初始化動作
-    setDate();
-    initializeLiff();
+    initDate();
+    initLiff();
 </script>
-
 </body>
 </html>
