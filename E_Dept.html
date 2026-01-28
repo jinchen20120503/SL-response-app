@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title> E_Dept. 製造問題回報系統</title>
+    <title>E_Dept. 製造問題回報系統</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
@@ -62,14 +62,17 @@
 </div>
 
 <script>
+    // --- 參數設定 ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
+    // 初始化日期與登入環境檢查
     window.onload = function() {
         const d = new Date();
         const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         document.getElementById('date').value = dateStr;
         
+        // 只有在非 LINE 環境且非 LIFF 轉址時才強制跳轉
         if (!navigator.userAgent.includes('Line') && !window.location.href.includes('liff.line.me')) {
             window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
         } else {
@@ -87,75 +90,10 @@
                 document.getElementById('userName').value = profile.displayName;
             }
         } catch (e) {
-            console.error("LIFF Init Error:", e);
+            console.error("LIFF 錯誤:", e);
             document.getElementById('userName').value = "LINE 使用者";
         }
     }
 
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const preview = document.getElementById('preview');
-                preview.src = event.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    function submitReport() {
-        const orderId = document.getElementById('orderId').value;
-        const desc = document.getElementById('description').value;
-        const overlay = document.getElementById('loadingOverlay');
-        const statusText = document.getElementById('statusText');
-
-        if (!orderId.trim() || !desc.trim()) {
-            alert("請完整填寫工單與說明");
-            return;
-        }
-
-        overlay.style.display = 'block';
-        document.getElementById('submitBtn').disabled = true;
-
-        const file = document.getElementById('fileInput').files[0];
-        
-        const sendToGas = (imgBase64 = null) => {
-            const payload = {
-                date: document.getElementById('date').value,
-                name: document.getElementById('userName').value,
-                orderId: orderId,
-                description: desc,
-                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
-                image: imgBase64
-            };
-
-            // 重要修正：移除 no-cors，使用 text/plain 避免 CORS 預檢失敗
-            fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            })
-            .then(res => res.text())
-            .then(text => {
-                statusText.innerHTML = "🎉 回報成功！<br><small>視窗即將關閉</small>";
-                setTimeout(() => { liff.closeWindow(); }, 2000);
-            })
-            .catch(err => {
-                overlay.style.display = 'none';
-                alert("傳送發生錯誤，請截圖後通知管理員：" + err);
-                document.getElementById('submitBtn').disabled = false;
-            });
-        };
-
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => sendToGas(e.target.result);
-            reader.readAsDataURL(file);
-        } else {
-            sendToGas();
-        }
-    }
-</script>
-</body>
-</html>
+    // 預覽圖片
+    document.getElementById('
