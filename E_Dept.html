@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -67,14 +66,15 @@
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 頁面一載入，先跑日期 (不依賴 LINE)
+    // 1. 頁面一載入的邏輯
     window.onload = function() {
         const d = new Date();
         const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         document.getElementById('date').value = dateStr;
         
-        // 檢查是否為外部瀏覽器，是的話跳轉
-        if (!navigator.userAgent.includes('Line') && !window.location.href.includes('liff.line.me')) {
+        // --- 關鍵修正：防止畫面跳動的轉址判斷 ---
+        // 判斷網址中是否已經含有 'liff'。如果沒有，代表是外部開啟，才進行轉址。
+        if (!window.location.href.includes('liff')) {
             window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
         } else {
             initLiff();
@@ -116,50 +116,4 @@
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
         const overlay = document.getElementById('loadingOverlay');
-        const statusText = document.getElementById('statusText');
-
-        if (!orderId.trim() || !desc.trim()) {
-            alert("請完整填寫工單與說明");
-            return;
-        }
-
-        overlay.style.display = 'block';
-        document.getElementById('submitBtn').disabled = true;
-
-        const file = document.getElementById('fileInput').files[0];
-        
-        const sendToGas = (imgBase64 = null) => {
-            const payload = {
-                date: document.getElementById('date').value,
-                name: document.getElementById('userName').value,
-                orderId: orderId,
-                description: desc,
-                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
-                image: imgBase64
-            };
-
-            fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify(payload)
-            }).then(() => {
-                statusText.innerHTML = "🎉 回報成功！<br><small>視窗即將關閉</small>";
-                setTimeout(() => { liff.closeWindow(); }, 2000);
-            }).catch(err => {
-                overlay.style.display = 'none';
-                alert("傳送失敗，請檢查網路");
-                document.getElementById('submitBtn').disabled = false;
-            });
-        };
-
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => sendToGas(e.target.result);
-            reader.readAsDataURL(file);
-        } else {
-            sendToGas();
-        }
-    }
-</script>
-</body>
-</html>
+        const
