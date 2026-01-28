@@ -62,100 +62,17 @@
 </div>
 
 <script>
+    // --- 核心參數 ---
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 頁面啟動立即帶入日期
-    function setInitialData() {
+    // 1. 頁面啟動邏輯
+    window.onload = function() {
+        // (A) 先填入日期，確保不留白
         const d = new Date();
         const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         document.getElementById('date').value = dateStr;
-    }
 
-    // 2. 初始化 LIFF 並處理登入
-    async function initLiff() {
-        try {
-            await liff.init({ liffId: MY_LIFF_ID });
-            if (!liff.isLoggedIn()) {
-                // 如果沒登入，會引導至 LINE 登入頁面，登入後會回到原網址
-                liff.login({ redirectUri: window.location.href });
-            } else {
-                const profile = await liff.getProfile();
-                document.getElementById('userName').value = profile.displayName;
-            }
-        } catch (e) {
-            console.error("LIFF Error:", e);
-            document.getElementById('userName').value = "訪客 (無法讀取姓名)";
-        }
-    }
-
-    // 啟動流程
-    window.onload = function() {
-        setInitialData();
-        initLiff();
-    };
-
-    // --- 以下為照片處理與送出邏輯 (不變) ---
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const preview = document.getElementById('preview');
-                preview.src = event.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    function submitReport() {
-        const orderId = document.getElementById('orderId').value;
-        const desc = document.getElementById('description').value;
-        const overlay = document.getElementById('loadingOverlay');
-        const statusText = document.getElementById('statusText');
-
-        if (!orderId.trim() || !desc.trim()) {
-            alert("請完整填寫工單與說明");
-            return;
-        }
-
-        overlay.style.display = 'block';
-        document.getElementById('submitBtn').disabled = true;
-
-        const file = document.getElementById('fileInput').files[0];
-        const sendToGas = (imgBase64 = null) => {
-            const payload = {
-                date: document.getElementById('date').value,
-                name: document.getElementById('userName').value,
-                orderId: orderId,
-                description: desc,
-                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
-                image: imgBase64
-            };
-
-            fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify(payload)
-            }).then(() => {
-                statusText.innerHTML = "🎉 回報成功！<br><small>視窗即將關閉</small>";
-                setTimeout(() => { liff.closeWindow(); }, 2000);
-            }).catch(err => {
-                overlay.style.display = 'none';
-                alert("傳送失敗，請檢查網路");
-                document.getElementById('submitBtn').disabled = false;
-            });
-        };
-
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => sendToGas(e.target.result);
-            reader.readAsDataURL(file);
-        } else {
-            sendToGas();
-        }
-    }
-</script>
-</body>
-</html>
+        // (B) 判斷開啟環境
+        // 如果網址不含 'liff' 且不是在 LINE 內部開啟，就轉址到 LIFF 專屬網址以自動登入
+        if (!window.location.href.includes('liff')
