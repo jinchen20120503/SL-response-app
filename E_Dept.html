@@ -15,6 +15,7 @@
         input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
         button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-submit { background-color: #00b900; color: white; }
+        .btn-submit:disabled { background-color: #ccc; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
     </style>
 </head>
@@ -24,11 +25,11 @@
     <h2>[E Dept.] 製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
-        <input type="text" id="date" readonly placeholder="讀取日期中...">
+        <input type="text" id="date" readonly>
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="點此嘗試重新登入..." onclick="initLiff()">
+        <input type="text" id="userName" readonly placeholder="登入中..." onclick="initLiff()">
     </div>
     <div class="field">
         <label>工單或圖號</label>
@@ -47,89 +48,6 @@
 </div>
 
 <script>
+    // --- 這裡請確保填入您最新的 GAS 網址 ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
-
-    // 第一步：強制先填入日期
-    function showDate() {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        document.getElementById('date').value = y + "-" + m + "-" + day;
-    }
-    showDate();
-
-    // 第二步：初始化 LIFF
-    async function initLiff() {
-        try {
-            await liff.init({ liffId: MY_LIFF_ID });
-            if (!liff.isLoggedIn()) {
-                liff.login();
-            } else {
-                const profile = await liff.getProfile();
-                document.getElementById('userName').value = profile.displayName;
-            }
-        } catch (e) {
-            console.error(e);
-            document.getElementById('userName').value = "讀取失敗，請重新掃描";
-        }
-    }
-    
-    // 網頁載入後立即啟動
-    window.onload = initLiff;
-
-    // --- 圖片處理與送出 ---
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const preview = document.getElementById('preview');
-                preview.src = event.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    function submitReport() {
-        const orderId = document.getElementById('orderId').value;
-        const desc = document.getElementById('description').value;
-        const name = document.getElementById('userName').value;
-
-        if (!orderId || !desc || name === "確認身分中...") {
-            alert("請填寫完整資料並確認已登入");
-            return;
-        }
-
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-        btn.innerText = "傳送中...";
-
-        const file = document.getElementById('fileInput').files[0];
-        const send = (base64 = null) => {
-            const payload = {
-                date: document.getElementById('date').value,
-                name: name,
-                orderId: orderId,
-                description: desc,
-                hasPhoto: base64 ? "✅ 有" : "❌ 無",
-                image: base64
-            };
-            fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) })
-            .then(() => { alert("回報成功！"); liff.closeWindow(); })
-            .catch(() => { alert("傳送失敗"); btn.disabled = false; btn.innerText = "送出回報"; });
-        };
-
-        if (file) {
-            const r = new FileReader();
-            r.onload = (e) => send(e.target.result);
-            r.readAsDataURL(file);
-        } else {
-            send();
-        }
-    }
-</script>
-</body>
-</html>
+    const GAS_URL = "
