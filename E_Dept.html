@@ -25,11 +25,11 @@
     <h2>[E Dept.] 製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
-        <input type="text" id="date" readonly>
+        <input type="text" id="date" readonly placeholder="載入日期中...">
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="登入中..." onclick="initLiff()">
+        <input type="text" id="userName" readonly placeholder="正在確認使用者身分..." onclick="initLiff()">
     </div>
     <div class="field">
         <label>工單或圖號</label>
@@ -48,6 +48,106 @@
 </div>
 
 <script>
-    // --- 這裡請確保填入您最新的 GAS 網址 ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
-    const GAS_URL = "
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
+
+    // 1. 自動帶入日期
+    function setTodayDate() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        document.getElementById('date').value = y + "-" + m + "-" + day;
+    }
+
+    // 2. 初始化 LIFF 並帶入姓名
+    async function initLiff() {
+        try {
+            await liff.init({ liffId: MY_LIFF_ID });
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            } else {
+                const profile = await liff.getProfile();
+                document.getElementById('userName').value = profile.displayName;
+            }
+        } catch (e) {
+            console.error("LIFF 錯誤:", e);
+            document.getElementById('userName').value = "讀取失敗，請點此重新登入";
+        }
+    }
+
+    // 當網頁載入時執行
+    window.onload = function() {
+        setTodayDate();
+        initLiff();
+    };
+
+    // 圖片預覽邏輯
+    document.getElementById('fileInput').onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = document.getElementById('preview');
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    function submitReport() {
+        const orderId = document.getElementById('orderId').value;
+        const desc = document.getElementById('description').value;
+        const name = document.getElementById('userName').value;
+        const date = document.getElementById('date').value;
+
+        if (!orderId || !desc || !name || name === "正在確認使用者身分...") {
+            alert("請完整填寫工單與說明，並確認姓名已讀取");
+            return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "傳送中...";
+
+        const file = document.getElementById('fileInput').files[0];
+        
+        const sendData = (base64 = null) => {
+            const payload = {
+                date: date,
+                name: name,
+                orderId: orderId,
+                description: desc,
+                hasPhoto: base64 ? "✅ 有" : "❌ 無",
+                image: base64
+            };
+
+            fetch(GAS_URL, {
+                method: "POST",
+                mode: "cors", 
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.text())
+            .then(text => {
+                alert("回報成功！資料已寫入試算表。");
+                liff.closeWindow();
+            })
+            .catch(err => {
+                alert("傳送失敗，請確認網路連線或授權權限");
+                btn.disabled = false;
+                btn.innerText = "重新送出回報";
+            });
+        };
+
+        if (file) {
+            const r = new FileReader();
+            r.onload = (e) => sendData(e.target.result);
+            r.readAsDataURL(file);
+        } else {
+            sendData();
+        }
+    }
+</script>
+</body>
+</html>
