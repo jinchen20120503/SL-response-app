@@ -57,4 +57,95 @@
 </div>
 
 <script>
-    const MY_LIFF_ID = "20088937
+    const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
+
+    window.onload = function() {
+        const d = new Date();
+        document.getElementById('date').value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        initLiff();
+    };
+
+    async function initLiff() {
+        try {
+            await liff.init({ liffId: MY_LIFF_ID });
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            } else {
+                const profile = await liff.getProfile();
+                document.getElementById('userName').value = profile.displayName;
+            }
+        } catch (e) {
+            document.getElementById('userName').value = "使用者";
+        }
+    }
+
+    document.getElementById('fileInput').onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = document.getElementById('preview');
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    function submitReport() {
+        const orderId = document.getElementById('orderId').value;
+        const desc = document.getElementById('description').value;
+        const overlay = document.getElementById('statusOverlay');
+        const statusMsg = document.getElementById('statusMessage');
+        const btn = document.getElementById('submitBtn');
+
+        if (!orderId || !desc) { alert("請填寫工單與說明"); return; }
+
+        // 顯示遮罩並禁用按鈕
+        btn.disabled = true;
+        overlay.style.display = 'block';
+        statusMsg.innerHTML = "系統處理中，請稍候...";
+
+        const file = document.getElementById('fileInput').files[0];
+        
+        const sendToGas = (imgBase64 = null) => {
+            const payload = {
+                date: document.getElementById('date').value,
+                name: document.getElementById('userName').value,
+                orderId: orderId,
+                description: desc,
+                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
+                image: imgBase64
+            };
+
+            fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.text())
+            .then(text => {
+                // 更新提示為成功，並設定 2 秒後關閉
+                statusMsg.innerHTML = "🎉 回報成功！<br>畫面即將關閉...";
+                setTimeout(() => {
+                    liff.closeWindow();
+                }, 2000);
+            })
+            .catch(err => {
+                overlay.style.display = 'none';
+                alert("傳送出錯，請重新送出回報");
+                btn.disabled = false;
+            });
+        };
+
+        if (file) {
+            const r = new FileReader();
+            r.onload = (e) => sendToGas(e.target.result);
+            r.readAsDataURL(file);
+        } else {
+            sendToGas();
+        }
+    }
+</script>
+</body>
+</html>
