@@ -62,17 +62,14 @@
 </div>
 
 <script>
-    // --- 核心參數 ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 頁面一載入，先跑日期 (不依賴 LINE)
     window.onload = function() {
         const d = new Date();
         const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         document.getElementById('date').value = dateStr;
         
-        // 檢查是否為外部瀏覽器，是的話跳轉
         if (!navigator.userAgent.includes('Line') && !window.location.href.includes('liff.line.me')) {
             window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
         } else {
@@ -80,7 +77,6 @@
         }
     };
 
-    // 2. 初始化 LIFF
     async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
@@ -96,7 +92,6 @@
         }
     }
 
-    // 3. 照片預覽
     document.getElementById('fileInput').onchange = function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -110,7 +105,6 @@
         }
     };
 
-    // 4. 送出資料
     function submitReport() {
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
@@ -137,16 +131,19 @@
                 image: imgBase64
             };
 
+            // 重要修正：移除 no-cors，使用 text/plain 避免 CORS 預檢失敗
             fetch(GAS_URL, {
                 method: "POST",
-                mode: "no-cors",
                 body: JSON.stringify(payload)
-            }).then(() => {
+            })
+            .then(res => res.text())
+            .then(text => {
                 statusText.innerHTML = "🎉 回報成功！<br><small>視窗即將關閉</small>";
                 setTimeout(() => { liff.closeWindow(); }, 2000);
-            }).catch(err => {
+            })
+            .catch(err => {
                 overlay.style.display = 'none';
-                alert("傳送失敗，請檢查網路");
+                alert("傳送發生錯誤，請截圖後通知管理員：" + err);
                 document.getElementById('submitBtn').disabled = false;
             });
         };
@@ -161,5 +158,4 @@
     }
 </script>
 </body>
-
 </html>
