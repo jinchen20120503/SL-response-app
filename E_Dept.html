@@ -36,7 +36,7 @@
     <h2>[E Dept] 製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
-        <input type="text" id="date" readonly>
+        <input type="text" id="date" readonly placeholder="讀取日期中...">
     </div>
     <div class="field">
         <label>申請人員</label>
@@ -62,27 +62,18 @@
 </div>
 
 <script>
-    // --- 核心參數 ---
     const MY_LIFF_ID = "2008893793-KFkHwA77"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 頁面載入第一步：填入日期 + 決定是否初始化 LIFF
-    window.onload = function() {
-        // 自動帶入日期
+    // 1. 強制填入日期 (放在最外面，確保一開網頁就有日期)
+    function setDate() {
         const d = new Date();
         const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         document.getElementById('date').value = dateStr;
-        
-        // 判斷網址判斷：如果不在 LIFF 環境則跳轉，在的話則初始化抓取姓名
-        if (!window.location.href.includes('liff')) {
-            window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
-        } else {
-            // 已在 LIFF 環境中，直接開始初始化抓名字
-            initLiff();
-        }
-    };
+    }
+    setDate();
 
-    // 2. 初始化 LIFF 並帶入使用者姓名
+    // 2. 初始化 LIFF
     async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
@@ -93,12 +84,22 @@
                 document.getElementById('userName').value = profile.displayName;
             }
         } catch (e) {
-            console.error("LIFF Init Error:", e);
-            document.getElementById('userName').value = "LINE 使用者";
+            console.error("LIFF Error:", e);
+            document.getElementById('userName').value = "訪客身分 (無法取得姓名)";
         }
     }
 
-    // 3. 照片預覽
+    // 3. 頁面載入判定
+    window.onload = function() {
+        // 如果網址不含 liff，代表需要轉址
+        if (!window.location.href.includes('liff.line.me') && !window.location.search.includes('liff')) {
+            window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
+        } else {
+            initLiff();
+        }
+    };
+
+    // 照片預覽與送出邏輯 (與之前相同)
     document.getElementById('fileInput').onchange = function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -112,7 +113,6 @@
         }
     };
 
-    // 4. 送出資料
     function submitReport() {
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
