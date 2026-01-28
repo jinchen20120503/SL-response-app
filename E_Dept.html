@@ -6,19 +6,29 @@
     <title>[E Dept] 製造問題回報系統</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 450px; margin: auto; }
-        h2 { text-align: center; color: #00b900; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
-        .field { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; }
-        input, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-        input[readonly] { background-color: #eee; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        h2 { text-align: center; color: #00b900; margin-top: 0; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
+        .field { margin-bottom: 18px; }
+        label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #444; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-submit { background-color: #00b900; color: white; }
-        #preview { max-width: 100%; margin-top: 10px; display: none; }
+        .btn-submit:disabled { background-color: #ccc; }
+        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
+        #loadingOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.95); z-index: 1000; text-align: center; padding-top: 40%;
+        }
+        .loading-text { color: #00b900; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
+
+<div id="loadingOverlay">
+    <div id="statusText" class="loading-text">系統處理中...</div>
+</div>
 
 <div class="card">
     <h2>[E Dept.] 製造問題回報</h2>
@@ -28,15 +38,15 @@
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="登入中...">
+        <input type="text" id="userName" readonly placeholder="確認身分中...">
     </div>
     <div class="field">
         <label>工單或圖號</label>
-        <input type="text" id="orderId">
+        <input type="text" id="orderId" placeholder="請填寫工單編號">
     </div>
     <div class="field">
         <label>異常說明</label>
-        <textarea id="description" rows="3"></textarea>
+        <textarea id="description" rows="3" placeholder="請詳細描述異常狀況..."></textarea>
     </div>
     <div class="field">
         <label>現場照片 (選填)</label>
@@ -47,71 +57,79 @@
 </div>
 
 <script>
-    const MY_LIFF_ID = "2008893793-KFkHwA77";
+    // --- 核心設定 (已填入您的新 ID) ---
+    const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 立即顯示日期 (不放進任何判斷式)
-    const d = new Date();
-    document.getElementById('date').value = d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0');
+    // 1. 初始化頁面
+    window.onload = function() {
+        // 自動帶入日期
+        const d = new Date();
+        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        document.getElementById('date').value = dateStr;
+        
+        // 啟動 LIFF
+        initLiff();
+    };
 
-    // 2. 初始化 LIFF
-    async function startLiff() {
+    // 2. LIFF 登入邏輯
+    async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
             if (!liff.isLoggedIn()) {
+                // 如果在外部掃碼，會引導至登入，登入後自動跳回此頁
                 liff.login();
             } else {
                 const profile = await liff.getProfile();
                 document.getElementById('userName').value = profile.displayName;
             }
-        } catch (err) {
-            document.getElementById('userName').value = "訪客";
+        } catch (e) {
+            console.error("LIFF Init Error:", e);
+            document.getElementById('userName').value = "訪客身分";
         }
     }
-    startLiff();
 
     // 3. 照片預覽
     document.getElementById('fileInput').onchange = function(e) {
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-            document.getElementById('preview').src = ev.target.result;
-            document.getElementById('preview').style.display = 'block';
-        };
-        reader.readAsDataURL(e.target.files[0]);
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const preview = document.getElementById('preview');
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     // 4. 送出資料
     function submitReport() {
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
-        if (!orderId || !desc) { alert("請填寫工單與說明"); return; }
+        const overlay = document.getElementById('loadingOverlay');
+        const statusText = document.getElementById('statusText');
 
+        if (!orderId.trim() || !desc.trim()) {
+            alert("請完整填寫工單與說明");
+            return;
+        }
+
+        overlay.style.display = 'block';
         document.getElementById('submitBtn').disabled = true;
-        document.getElementById('submitBtn').innerText = "傳送中...";
 
         const file = document.getElementById('fileInput').files[0];
-        const send = (base64 = null) => {
+        const sendToGas = (imgBase64 = null) => {
             const payload = {
                 date: document.getElementById('date').value,
                 name: document.getElementById('userName').value,
                 orderId: orderId,
                 description: desc,
-                hasPhoto: base64 ? "✅ 有" : "❌ 無",
-                image: base64
+                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
+                image: imgBase64
             };
-            fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) })
-            .then(() => { alert("回報成功！"); liff.closeWindow(); })
-            .catch(() => { alert("錯誤，請檢查網路"); document.getElementById('submitBtn').disabled = false; });
-        };
 
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => send(e.target.result);
-            reader.readAsDataURL(file);
-        } else {
-            send();
-        }
-    }
-</script>
-</body>
-</html>
+            fetch(GAS_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(payload
