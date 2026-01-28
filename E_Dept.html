@@ -15,30 +15,20 @@
         input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
         button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-submit { background-color: #00b900; color: white; }
-        .btn-submit:disabled { background-color: #ccc; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
-        #loadingOverlay { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255,255,255,0.95); z-index: 1000; text-align: center; padding-top: 40%;
-        }
-        .loading-text { color: #00b900; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
-
-<div id="loadingOverlay">
-    <div id="statusText" class="loading-text">系統處理中...</div>
-</div>
 
 <div class="card">
     <h2>[E Dept.] 製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
-        <input type="text" id="date" readonly>
+        <input type="text" id="date" readonly placeholder="讀取日期中...">
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="確認身分中...">
+        <input type="text" id="userName" readonly placeholder="點此嘗試重新登入..." onclick="initLiff()">
     </div>
     <div class="field">
         <label>工單或圖號</label>
@@ -57,44 +47,44 @@
 </div>
 
 <script>
-    // --- 核心設定 (已填入您的新 ID) ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 初始化頁面
-    window.onload = function() {
-        // 自動帶入日期
+    // 第一步：強制先填入日期
+    function showDate() {
         const d = new Date();
-        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
-        document.getElementById('date').value = dateStr;
-        
-        // 啟動 LIFF
-        initLiff();
-    };
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        document.getElementById('date').value = y + "-" + m + "-" + day;
+    }
+    showDate();
 
-    // 2. LIFF 登入邏輯
+    // 第二步：初始化 LIFF
     async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
             if (!liff.isLoggedIn()) {
-                // 如果在外部掃碼，會引導至登入，登入後自動跳回此頁
                 liff.login();
             } else {
                 const profile = await liff.getProfile();
                 document.getElementById('userName').value = profile.displayName;
             }
         } catch (e) {
-            console.error("LIFF Init Error:", e);
-            document.getElementById('userName').value = "訪客身分";
+            console.error(e);
+            document.getElementById('userName').value = "讀取失敗，請重新掃描";
         }
     }
+    
+    // 網頁載入後立即啟動
+    window.onload = initLiff;
 
-    // 3. 照片預覽
+    // --- 圖片處理與送出 ---
     document.getElementById('fileInput').onchange = function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = (event) => {
                 const preview = document.getElementById('preview');
                 preview.src = event.target.result;
                 preview.style.display = 'block';
@@ -103,33 +93,43 @@
         }
     };
 
-    // 4. 送出資料
     function submitReport() {
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
-        const overlay = document.getElementById('loadingOverlay');
-        const statusText = document.getElementById('statusText');
+        const name = document.getElementById('userName').value;
 
-        if (!orderId.trim() || !desc.trim()) {
-            alert("請完整填寫工單與說明");
+        if (!orderId || !desc || name === "確認身分中...") {
+            alert("請填寫完整資料並確認已登入");
             return;
         }
 
-        overlay.style.display = 'block';
-        document.getElementById('submitBtn').disabled = true;
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "傳送中...";
 
         const file = document.getElementById('fileInput').files[0];
-        const sendToGas = (imgBase64 = null) => {
+        const send = (base64 = null) => {
             const payload = {
                 date: document.getElementById('date').value,
-                name: document.getElementById('userName').value,
+                name: name,
                 orderId: orderId,
                 description: desc,
-                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
-                image: imgBase64
+                hasPhoto: base64 ? "✅ 有" : "❌ 無",
+                image: base64
             };
+            fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) })
+            .then(() => { alert("回報成功！"); liff.closeWindow(); })
+            .catch(() => { alert("傳送失敗"); btn.disabled = false; btn.innerText = "送出回報"; });
+        };
 
-            fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify(payload
+        if (file) {
+            const r = new FileReader();
+            r.onload = (e) => send(e.target.result);
+            r.readAsDataURL(file);
+        } else {
+            send();
+        }
+    }
+</script>
+</body>
+</html>
