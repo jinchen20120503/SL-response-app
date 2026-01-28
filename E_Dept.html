@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>[E Dept] 製造問題回報系統</title>
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <title> E_Dept. 製造問題回報系統</title>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -13,23 +13,34 @@
         label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #444; }
         input, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
-        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-group { display: flex; gap: 10px; margin-top: 25px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
         .btn-submit { background-color: #00b900; color: white; }
         .btn-submit:disabled { background-color: #ccc; }
+        .btn-cancel { background-color: #eee; color: #333; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
+        #loadingOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.95); z-index: 1000; text-align: center; padding-top: 40%;
+        }
+        .loading-text { color: #00b900; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
+<div id="loadingOverlay">
+    <div id="statusText" class="loading-text">系統處理中...</div>
+</div>
+
 <div class="card">
-    <h2>[E Dept.] 製造問題回報</h2>
+    <h2>E_Dept. 製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
-        <input type="text" id="date" readonly placeholder="載入日期中...">
+        <input type="text" id="date" readonly>
     </div>
     <div class="field">
         <label>申請人員</label>
-        <input type="text" id="userName" readonly placeholder="正在確認使用者身分..." onclick="initLiff()">
+        <input type="text" id="userName" readonly placeholder="登入 LINE 中...">
     </div>
     <div class="field">
         <label>工單或圖號</label>
@@ -44,23 +55,32 @@
         <input type="file" id="fileInput" accept="image/*">
         <img id="preview">
     </div>
-    <button type="button" class="btn-submit" id="submitBtn" onclick="submitReport()">送出回報</button>
+    <div class="btn-group">
+        <button type="button" class="btn-cancel" onclick="liff.closeWindow()">取消</button>
+        <button type="button" class="btn-submit" id="submitBtn" onclick="submitReport()">送出回報</button>
+    </div>
 </div>
 
 <script>
+    // --- 核心參數 ---
     const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
 
-    // 1. 自動帶入日期
-    function setTodayDate() {
+    // 1. 頁面一載入，先跑日期 (不依賴 LINE)
+    window.onload = function() {
         const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        document.getElementById('date').value = y + "-" + m + "-" + day;
-    }
+        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        document.getElementById('date').value = dateStr;
+        
+        // 檢查是否為外部瀏覽器，是的話跳轉
+        if (!navigator.userAgent.includes('Line') && !window.location.href.includes('liff.line.me')) {
+            window.location.href = "https://liff.line.me/" + MY_LIFF_ID;
+        } else {
+            initLiff();
+        }
+    };
 
-    // 2. 初始化 LIFF 並帶入姓名
+    // 2. 初始化 LIFF
     async function initLiff() {
         try {
             await liff.init({ liffId: MY_LIFF_ID });
@@ -71,23 +91,17 @@
                 document.getElementById('userName').value = profile.displayName;
             }
         } catch (e) {
-            console.error("LIFF 錯誤:", e);
-            document.getElementById('userName').value = "讀取失敗，請點此重新登入";
+            console.error("LIFF Init Error:", e);
+            document.getElementById('userName').value = "LINE 使用者";
         }
     }
 
-    // 當網頁載入時執行
-    window.onload = function() {
-        setTodayDate();
-        initLiff();
-    };
-
-    // 圖片預覽邏輯
+    // 3. 照片預覽
     document.getElementById('fileInput').onchange = function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = function(event) {
                 const preview = document.getElementById('preview');
                 preview.src = event.target.result;
                 preview.style.display = 'block';
@@ -96,58 +110,56 @@
         }
     };
 
+    // 4. 送出資料
     function submitReport() {
         const orderId = document.getElementById('orderId').value;
         const desc = document.getElementById('description').value;
-        const name = document.getElementById('userName').value;
-        const date = document.getElementById('date').value;
+        const overlay = document.getElementById('loadingOverlay');
+        const statusText = document.getElementById('statusText');
 
-        if (!orderId || !desc || !name || name === "正在確認使用者身分...") {
-            alert("請完整填寫工單與說明，並確認姓名已讀取");
+        if (!orderId.trim() || !desc.trim()) {
+            alert("請完整填寫工單與說明");
             return;
         }
 
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-        btn.innerText = "傳送中...";
+        overlay.style.display = 'block';
+        document.getElementById('submitBtn').disabled = true;
 
         const file = document.getElementById('fileInput').files[0];
         
-        const sendData = (base64 = null) => {
+        const sendToGas = (imgBase64 = null) => {
             const payload = {
-                date: date,
-                name: name,
+                date: document.getElementById('date').value,
+                name: document.getElementById('userName').value,
                 orderId: orderId,
                 description: desc,
-                hasPhoto: base64 ? "✅ 有" : "❌ 無",
-                image: base64
+                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
+                image: imgBase64
             };
 
             fetch(GAS_URL, {
                 method: "POST",
-                mode: "cors", 
+                mode: "no-cors",
                 body: JSON.stringify(payload)
-            })
-            .then(res => res.text())
-            .then(text => {
-                alert("回報成功！資料已寫入試算表。");
-                liff.closeWindow();
-            })
-            .catch(err => {
-                alert("傳送失敗，請確認網路連線或授權權限");
-                btn.disabled = false;
-                btn.innerText = "重新送出回報";
+            }).then(() => {
+                statusText.innerHTML = "🎉 回報成功！<br><small>視窗即將關閉</small>";
+                setTimeout(() => { liff.closeWindow(); }, 2000);
+            }).catch(err => {
+                overlay.style.display = 'none';
+                alert("傳送失敗，請檢查網路");
+                document.getElementById('submitBtn').disabled = false;
             });
         };
 
         if (file) {
-            const r = new FileReader();
-            r.onload = (e) => sendData(e.target.result);
-            r.readAsDataURL(file);
+            const reader = new FileReader();
+            reader.onload = (e) => sendToGas(e.target.result);
+            reader.readAsDataURL(file);
         } else {
-            sendData();
+            sendToGas();
         }
     }
 </script>
 </body>
+
 </html>
