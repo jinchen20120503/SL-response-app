@@ -17,10 +17,18 @@
         .btn-submit { background-color: #00b900; color: white; }
         .btn-submit:disabled { background-color: #ccc; }
         #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
-        #loading { display: none; text-align: center; color: #00b900; font-weight: bold; margin-top: 10px; }
+        #statusOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.95); z-index: 1000; text-align: center; padding-top: 50%;
+        }
+        .status-text { color: #00b900; font-size: 18px; font-weight: bold; line-height: 1.6; }
     </style>
 </head>
 <body>
+
+<div id="statusOverlay">
+    <div id="statusMessage" class="status-text">系統處理中，請稍候...</div>
+</div>
 
 <div class="card">
     <h2>E_Dept. 製造問題回報</h2>
@@ -45,94 +53,8 @@
         <input type="file" id="fileInput" accept="image/*">
         <img id="preview">
     </div>
-    <div id="loading">系統處理中，請稍候...</div>
     <button type="button" class="btn-submit" id="submitBtn" onclick="submitReport()">送出回報</button>
 </div>
 
 <script>
-    const MY_LIFF_ID = "2008893793-1GH2Z3pw"; 
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyJJs9ar14cYFNI-Gm5d0xPkROULqLygtDGNDsFfSy-fERDasJ17-5mOHYqBTal3rR9/exec";
-
-    window.onload = function() {
-        const d = new Date();
-        document.getElementById('date').value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
-        initLiff();
-    };
-
-    async function initLiff() {
-        try {
-            await liff.init({ liffId: MY_LIFF_ID });
-            if (!liff.isLoggedIn()) {
-                liff.login();
-            } else {
-                const profile = await liff.getProfile();
-                document.getElementById('userName').value = profile.displayName;
-            }
-        } catch (e) {
-            document.getElementById('userName').value = "使用者";
-        }
-    }
-
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const preview = document.getElementById('preview');
-                preview.src = event.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    function submitReport() {
-        const orderId = document.getElementById('orderId').value;
-        const desc = document.getElementById('description').value;
-        if (!orderId || !desc) { alert("請填寫工單與說明"); return; }
-
-        const btn = document.getElementById('submitBtn');
-        const ld = document.getElementById('loading');
-        btn.disabled = true;
-        ld.style.display = 'block';
-
-        const file = document.getElementById('fileInput').files[0];
-        
-        const sendToGas = (imgBase64 = null) => {
-            const payload = {
-                date: document.getElementById('date').value,
-                name: document.getElementById('userName').value,
-                orderId: orderId,
-                description: desc,
-                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
-                image: imgBase64
-            };
-
-            // 重要修正：移除所有 mode，讓瀏覽器自動處理最穩定的傳輸
-            fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            })
-            .then(res => res.text())
-            .then(text => {
-                alert("回報成功！資料已寫入試算表。");
-                liff.closeWindow();
-            })
-            .catch(err => {
-                alert("傳送出錯，請確認網路或重新送出");
-                btn.disabled = false;
-                ld.style.display = 'none';
-            });
-        };
-
-        if (file) {
-            const r = new FileReader();
-            r.onload = (e) => sendToGas(e.target.result);
-            r.readAsDataURL(file);
-        } else {
-            sendToGas();
-        }
-    }
-</script>
-</body>
-</html>
+    const MY_LIFF_ID = "20088937
