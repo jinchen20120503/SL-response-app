@@ -1,1 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>T 零缺點製造問題回報系統</title>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        h2 { text-align: center; color: #00b900; margin-top: 0; border-bottom: 2px solid #00b900; padding-bottom: 10px; }
+        .field { margin-bottom: 18px; }
+        label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #444; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input[readonly] { background-color: #f9f9f9; color: #777; border: 1px solid #eee; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-submit { background-color: #00b900; color: white; }
+        .btn-submit:disabled { background-color: #ccc; }
+        #preview { max-width: 100%; margin-top: 10px; border-radius: 8px; display: none; border: 1px solid #ddd; }
+        #statusOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.95); z-index: 1000; text-align: center; padding-top: 50%;
+        }
+        .status-text { color: #00b900; font-size: 18px; font-weight: bold; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div id="statusOverlay">
+    <div id="statusMessage" class="status-text">系統處理中，請稍候...</div>
+</div>
+
+<div class="card">
+    <h2>E_Dept. 製造問題回報</h2>
+    <div class="field">
+        <label>申請日期</label>
+        <input type="text" id="date" readonly>
+    </div>
+    <div class="field">
+        <label>申請人員</label>
+        <input type="text" id="userName" readonly placeholder="登入 LINE 中...">
+    </div>
+    <div class="field">
+        <label>工令或圖號</label>
+        <input type="text" id="orderId" placeholder="請填寫工單編號">
+    </div>
+    <div class="field">
+        <label>異常說明</label>
+        <textarea id="description" rows="3" placeholder="請詳細描述異常狀況..."></textarea>
+    </div>
+    <div class="field">
+        <label>現場照片 (選填)</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <img id="preview">
+    </div>
+    <button type="button" class="btn-submit" id="submitBtn" onclick="submitReport()">送出回報</button>
+</div>
+
+<script>
+    const MY_LIFF_ID = "2008893793-yX4b4Sq4"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwTewNiTNZSBcjihfXmeO0V262dAZR0KOpg4sifghATT-XL4bhAqh4Kx5Fc6fw2CUgb/exec";
+
+    window.onload = function() {
+        const d = new Date();
+        document.getElementById('date').value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        initLiff();
+    };
+
+    async function initLiff() {
+        try {
+            await liff.init({ liffId: MY_LIFF_ID });
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            } else {
+                const profile = await liff.getProfile();
+                document.getElementById('userName').value = profile.displayName;
+            }
+        } catch (e) {
+            document.getElementById('userName').value = "使用者";
+        }
+    }
+
+    document.getElementById('fileInput').onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = document.getElementById('preview');
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    function submitReport() {
+        const orderId = document.getElementById('orderId').value;
+        const desc = document.getElementById('description').value;
+        const overlay = document.getElementById('statusOverlay');
+        const statusMsg = document.getElementById('statusMessage');
+        const btn = document.getElementById('submitBtn');
+
+        if (!orderId || !desc) { alert("請填寫工令與說明"); return; }
+
+        // 顯示遮罩並禁用按鈕
+        btn.disabled = true;
+        overlay.style.display = 'block';
+        statusMsg.innerHTML = "系統處理中，請稍候...";
+
+        const file = document.getElementById('fileInput').files[0];
+        
+        const sendToGas = (imgBase64 = null) => {
+            const payload = {
+                date: document.getElementById('date').value,
+                name: document.getElementById('userName').value,
+                orderId: orderId,
+                description: desc,
+                hasPhoto: imgBase64 ? "✅ 有" : "❌ 無",
+                image: imgBase64
+            };
+
+            fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.text())
+            .then(text => {
+                // 更新提示為成功，並設定 2 秒後關閉
+                statusMsg.innerHTML = "🎉 回報成功！<br>畫面即將關閉...";
+                setTimeout(() => {
+                    liff.closeWindow();
+                }, 2000);
+            })
+            .catch(err => {
+                overlay.style.display = 'none';
+                alert("傳送出錯，請重新送出回報");
+                btn.disabled = false;
+            });
+        };
+
+        if (file) {
+            const r = new FileReader();
+            r.onload = (e) => sendToGas(e.target.result);
+            r.readAsDataURL(file);
+        } else {
+            sendToGas();
+        }
+    }
+</script>
+</body>
+</html>
 
