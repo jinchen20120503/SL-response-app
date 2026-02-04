@@ -31,7 +31,7 @@
 </div>
 
 <div class="card">
-    <h2>E_Dept. 製造問題回報</h2>
+    <h2>T 零缺點製造問題回報</h2>
     <div class="field">
         <label>申請日期</label>
         <input type="text" id="date" readonly>
@@ -42,7 +42,7 @@
     </div>
     <div class="field">
         <label>工令或圖號</label>
-        <input type="text" id="orderId" placeholder="請填寫工單編號">
+        <input type="text" id="orderId" placeholder="請填寫工令編號">
     </div>
     <div class="field">
         <label>異常說明</label>
